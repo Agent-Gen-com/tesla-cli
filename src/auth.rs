@@ -167,7 +167,7 @@ pub async fn refresh(
     let refresh_tok = token
         .refresh_token
         .as_deref()
-        .context("No refresh token available — run 'tescmd setup' to re-authenticate")?;
+        .context("No refresh token available — run 'teslacli setup' to re-authenticate")?;
     let http = reqwest::Client::new();
     let mut form = vec![
         ("grant_type", "refresh_token".to_string()),

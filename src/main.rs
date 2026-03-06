@@ -18,7 +18,7 @@ use vcp::{commands::Command, VcpClient};
 // ---------------------------------------------------------------------------
 
 #[derive(Parser)]
-#[command(name = "tescmd", about = "Tesla Fleet API CLI")]
+#[command(name = "teslacli", about = "Tesla Fleet API CLI")]
 struct Cli {
     /// Vehicle VIN (overrides TESLA_VIN env var and config)
     #[arg(long, env = "TESLA_VIN", global = true)]
@@ -204,7 +204,7 @@ async fn cmd_vcp(
     // Load private key
     let key_path = Config::private_key_path();
     let private_pem = std::fs::read_to_string(&key_path)
-        .with_context(|| format!("Loading private key from {} — run 'tescmd setup'", key_path.display()))?;
+        .with_context(|| format!("Loading private key from {} — run 'teslacli setup'", key_path.display()))?;
 
     let mut vcp = VcpClient::new(&private_pem)?;
     let http = reqwest::Client::builder()

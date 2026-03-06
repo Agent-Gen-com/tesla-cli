@@ -19,7 +19,7 @@ impl Config {
     pub fn config_dir() -> PathBuf {
         dirs::home_dir()
             .unwrap_or_else(|| PathBuf::from("."))
-            .join(".config/tescmd")
+            .join(".config/teslacli")
     }
 
     pub fn config_path() -> PathBuf {
@@ -79,7 +79,7 @@ impl Config {
             let client_id = self
                 .client_id
                 .as_deref()
-                .context("client_id not configured — run 'tescmd setup'")?;
+                .context("client_id not configured — run 'teslacli setup'")?;
             let secret = self.client_secret.as_deref();
             token = crate::auth::refresh(&token, client_id, secret).await?;
             token.save()?;
@@ -102,7 +102,7 @@ impl TokenData {
     pub fn load() -> Result<Self> {
         let path = Config::token_path();
         let content = std::fs::read_to_string(&path)
-            .with_context(|| format!("Reading token from {} — run 'tescmd setup' to authenticate", path.display()))?;
+            .with_context(|| format!("Reading token from {} — run 'teslacli setup' to authenticate", path.display()))?;
         serde_json::from_str(&content).context("Parsing token.json")
     }
 

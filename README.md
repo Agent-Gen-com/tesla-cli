@@ -1,4 +1,4 @@
-# tescmd-rs
+# teslacli
 
 A minimal, standalone Rust CLI for controlling Tesla vehicles via the [Tesla Fleet API](https://developer.tesla.com/docs/fleet-api).
 
@@ -6,36 +6,45 @@ A minimal, standalone Rust CLI for controlling Tesla vehicles via the [Tesla Fle
 
 ---
 
-## Requirements
-
-- Rust 1.70+ (`rustup` recommended)
-- A [Tesla Developer account](https://developer.tesla.com) with an OAuth app
-- An [AgentGen](https://www.agent-gen.com) API key (free)
-
----
-
 ## Install
 
-```bash
-git clone <repo>
-cd tescmd-rs
-cargo build --release
-# Binary is at: target/release/tescmd
+### One-line install (macOS & Linux)
 
-# Optional: install to PATH
+```sh
+curl -fsSL https://raw.githubusercontent.com/Agent-Gen-com/tesla-cli/main/install.sh | sh
+```
+
+Automatically detects your OS and architecture (x86\_64 / arm64), downloads the latest release binary, and installs it to `/usr/local/bin/teslacli`.
+
+### Build from source
+
+Requires Rust 1.70+ (`rustup` recommended).
+
+```bash
+git clone https://github.com/Agent-Gen-com/tesla-cli.git
+cd tesla-cli
+cargo build --release
+# Binary: target/release/teslacli
+
+# Or install to PATH:
 cargo install --path .
 ```
 
 ---
 
+## Requirements
+
+- A [Tesla Developer account](https://developer.tesla.com) with an OAuth app
+- An [AgentGen](https://www.agent-gen.com) API key (free)
+
+---
+
 ## First-time setup
 
-Run the interactive wizard. It walks you through all 5 steps:
+Run the interactive wizard — it walks you through all 5 steps:
 
 ```bash
-cargo run -- setup
-# or after install:
-tescmd setup
+teslacli setup
 ```
 
 ### What the wizard does
@@ -51,7 +60,7 @@ tescmd setup
 - Set the OAuth redirect URI to: `http://localhost:13227/callback`
 
 **Step 3 — EC key pair**
-- Generates a P-256 key pair and saves it to `~/.config/tescmd/keys/`
+- Generates a P-256 key pair and saves it to `~/.config/teslacli/keys/`
 - Uploads the public key to AgentGen (served at the Tesla-expected `.well-known` path)
 - Opens `https://tesla.com/_ak/<your-domain>` — **approve the key in your Tesla app**
 
@@ -60,12 +69,12 @@ tescmd setup
 
 **Step 5 — OAuth login**
 - Opens a browser for Tesla login (PKCE flow)
-- Saves tokens to `~/.config/tescmd/token.json`
+- Saves tokens to `~/.config/teslacli/token.json`
 
 ### Files created by setup
 
 ```
-~/.config/tescmd/
+~/.config/teslacli/
 ├── config.toml          # App credentials, region, AgentGen origin
 ├── token.json           # OAuth tokens (auto-refreshed)
 └── keys/
@@ -80,7 +89,7 @@ tescmd setup
 ### Global option
 
 ```bash
-tescmd --vin <VIN> <command>
+teslacli --vin <VIN> <command>
 # or set once:
 export TESLA_VIN=5YJ3E1EA...
 ```
@@ -93,46 +102,46 @@ If `--vin` / `TESLA_VIN` is omitted, the first vehicle on the account is used au
 
 ```bash
 # List all vehicles
-tescmd vehicle list
+teslacli vehicle list
 
 # Full vehicle data snapshot (JSON)
-tescmd vehicle data
+teslacli vehicle data
 
 # Wake the vehicle (unsigned REST, no VCP needed)
-tescmd vehicle wake
+teslacli vehicle wake
 
 # Lock / unlock doors (VCP → VCSEC)
-tescmd vehicle lock
-tescmd vehicle unlock
+teslacli vehicle lock
+teslacli vehicle unlock
 
 # Flash lights / honk horn (VCP → Infotainment)
-tescmd vehicle flash
-tescmd vehicle honk
+teslacli vehicle flash
+teslacli vehicle honk
 ```
 
 ### Climate commands
 
 ```bash
 # Turn climate on / off (VCP → Infotainment)
-tescmd climate start
-tescmd climate stop
+teslacli climate start
+teslacli climate stop
 
 # Set temperature in °C (sets both driver and passenger)
-tescmd climate set-temp -t 22.5
+teslacli climate set-temp -t 22.5
 ```
 
 ### Charge commands
 
 ```bash
 # Start / stop charging (VCP → Infotainment)
-tescmd charge start
-tescmd charge stop
+teslacli charge start
+teslacli charge stop
 
 # Set charge limit (0–100 %)
-tescmd charge set-limit -l 80
+teslacli charge set-limit -l 80
 
 # Set charging current (amps)
-tescmd charge set-amps -a 16
+teslacli charge set-amps -a 16
 ```
 
 ---
@@ -156,26 +165,39 @@ Commands that require the Vehicle Command Protocol (`lock`, `unlock`, `flash`, `
 |---|---|
 | `TESLA_VIN` | Default VIN (overridden by `--vin`) |
 
-All other settings (client ID, region, tokens) are stored in `~/.config/tescmd/config.toml` and `token.json` by the setup wizard.
+All other settings (client ID, region, tokens) are stored in `~/.config/teslacli/config.toml` and `token.json` by the setup wizard.
 
 ---
 
 ## Troubleshooting
 
 **"Key not enrolled on vehicle"**
-The virtual key approval step was skipped or not completed. Re-run `tescmd setup` and make sure to approve the key in the Tesla app when the enrollment URL opens.
+The virtual key approval step was skipped or not completed. Re-run `teslacli setup` and make sure to approve the key in the Tesla app when the enrollment URL opens.
 
-**"Token expired … run 'tescmd setup'"**
-The refresh token has expired (Tesla refresh tokens last ~45 days of inactivity). Re-run `tescmd setup` step 5 or just `tescmd setup` in full.
+**"Token expired … run 'teslacli setup'"**
+The refresh token has expired (Tesla refresh tokens last ~45 days of inactivity). Re-run `teslacli setup` step 5 or just `teslacli setup` in full.
 
 **"Handshake fault 3: UNKNOWN_KEY_ID"**
 Same as the key-not-enrolled error above.
 
 **"Handshake HTTP 408"**
-The vehicle subsystem didn't respond in time — usually because the vehicle just woke up. Run `tescmd vehicle wake`, wait a few seconds, and retry.
+The vehicle subsystem didn't respond in time — usually because the vehicle just woke up. Run `teslacli vehicle wake`, wait a few seconds, and retry.
 
 **Command works on some vehicles but not others**
 Older vehicles (pre-2021) may not support VCP. Check whether your vehicle supports Fleet API commands at https://developer.tesla.com/docs/fleet-api/vehicles/fleet-api-support.
+
+---
+
+## Releasing a new version
+
+Push a git tag and CI builds + publishes automatically:
+
+```sh
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+Anyone re-running the install command will get the new version.
 
 ---
 

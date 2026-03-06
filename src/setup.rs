@@ -25,8 +25,8 @@ fn prompt_default(label: &str, default: &str) -> String {
 }
 
 pub async fn run() -> Result<()> {
-    println!("\n=== tescmd setup ===\n");
-    println!("This wizard configures tescmd for use with the Tesla Fleet API.");
+    println!("\n=== teslacli setup ===\n");
+    println!("This wizard configures teslacli for use with the Tesla Fleet API.");
     println!("AgentGen replaces GitHub Pages / Tailscale for public-key hosting.\n");
 
     let mut config = Config::load()?;
@@ -164,7 +164,7 @@ pub async fn run() -> Result<()> {
     println!("\n=== Setup complete! ===");
     println!("Config: {}", Config::config_path().display());
     println!("Token:  {}", Config::token_path().display());
-    println!("\nTry: tescmd vehicle list");
+    println!("\nTry: teslacli vehicle list");
 
     Ok(())
 }

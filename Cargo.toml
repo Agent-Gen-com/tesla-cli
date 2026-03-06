@@ -1,10 +1,10 @@
 [package]
-name = "tescmd"
+name = "teslacli"
 version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "tescmd"
+name = "teslacli"
 path = "src/main.rs"
 
 [dependencies]
