@@ -8,6 +8,7 @@ mod vcp;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
+use tokio::time::{sleep, Duration};
 
 use api::TeslaClient;
 use config::Config;
@@ -212,9 +213,36 @@ async fn cmd_vcp(
         .build()?;
     let token = config.access_token().await?;
 
+    ensure_vehicle_awake(client, &vin).await?;
     println!("Sending {:?} to {}...", command, vin);
     vcp.send_command(&http, config.base_url(), &token, &vin, &command)
         .await?;
     println!("OK");
     Ok(())
+}
+
+async fn ensure_vehicle_awake(client: &TeslaClient, vin: &str) -> Result<()> {
+    let mut last_state = String::from("unknown");
+    for attempt in 1..=4 {
+        let resp = client.wake_vehicle(vin).await?;
+        let state = resp["state"].as_str().unwrap_or("unknown");
+        last_state = state.to_string();
+
+        if state == "online" {
+            return Ok(());
+        }
+
+        if attempt < 4 {
+            println!(
+                "Vehicle state is '{}' after wake attempt {}. Waiting 3s...",
+                state, attempt
+            );
+            sleep(Duration::from_secs(3)).await;
+        }
+    }
+
+    anyhow::bail!(
+        "Vehicle did not report 'online' after wake attempts (last state: {}).",
+        last_state
+    );
 }

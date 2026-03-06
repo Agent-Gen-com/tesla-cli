@@ -33,7 +33,7 @@ impl TeslaClient {
             .bearer_auth(&token)
             .send()
             .await?;
-        check_status(&resp)?;
+        let resp = check_status(resp).await?;
         let data: serde_json::Value = resp.json().await?;
         Ok(data["response"].as_array().cloned().unwrap_or_default())
     }
@@ -46,7 +46,7 @@ impl TeslaClient {
             .bearer_auth(&token)
             .send()
             .await?;
-        check_status(&resp)?;
+        let resp = check_status(resp).await?;
         let data: serde_json::Value = resp.json().await?;
         Ok(data["response"].clone())
     }
@@ -59,7 +59,7 @@ impl TeslaClient {
             .bearer_auth(&token)
             .send()
             .await?;
-        check_status(&resp)?;
+        let resp = check_status(resp).await?;
         let data: serde_json::Value = resp.json().await?;
         Ok(data["response"].clone())
     }
@@ -87,9 +87,11 @@ impl TeslaClient {
     }
 }
 
-fn check_status(resp: &reqwest::Response) -> Result<()> {
+async fn check_status(resp: reqwest::Response) -> Result<reqwest::Response> {
     if !resp.status().is_success() {
-        anyhow::bail!("Tesla API returned HTTP {}", resp.status());
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        anyhow::bail!("Tesla API returned HTTP {}: {}", status, body);
     }
-    Ok(())
+    Ok(resp)
 }

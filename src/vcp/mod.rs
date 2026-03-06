@@ -224,7 +224,9 @@ fn parse_session_info_from_response(data: &[u8]) -> Result<(u32, SessionInfo)> {
                 (1, FieldValue::Varint(v)) => si.counter = v as u32,
                 (2, FieldValue::Bytes(b)) => si.public_key = b,
                 (3, FieldValue::Bytes(b)) => si.epoch = b,
+                // Some vehicles encode clock_time as varint, others as fixed32.
                 (4, FieldValue::Varint(v)) => si.clock_time = v as u32,
+                (4, FieldValue::Fixed32(v)) => si.clock_time = v,
                 _ => {}
             }
             pos = np;
@@ -295,13 +297,15 @@ impl VcpClient {
             .await?;
 
         if !resp.status().is_success() {
-            anyhow::bail!("Handshake HTTP {}", resp.status());
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            anyhow::bail!("Handshake HTTP {}: {}", status, body);
         }
 
         let resp_data: serde_json::Value = resp.json().await?;
         let response_b64 = resp_data["response"]
             .as_str()
-            .context("No 'response' field in handshake response")?;
+            .with_context(|| format!("No 'response' field in handshake response: {}", resp_data))?;
         let response_bytes = STANDARD.decode(response_b64).context("base64 decode")?;
 
         let (_fault, si) = parse_session_info_from_response(&response_bytes)?;
@@ -401,13 +405,15 @@ impl VcpClient {
                 .await?;
 
             if !resp.status().is_success() {
-                anyhow::bail!("Command HTTP {}", resp.status());
+                let status = resp.status();
+                let body = resp.text().await.unwrap_or_default();
+                anyhow::bail!("Command HTTP {}: {}", status, body);
             }
 
             let resp_data: serde_json::Value = resp.json().await?;
             let response_b64 = resp_data["response"]
                 .as_str()
-                .context("No 'response' field in command response")?;
+                .with_context(|| format!("No 'response' field in command response: {}", resp_data))?;
             let response_bytes = STANDARD.decode(response_b64).context("base64 decode")?;
             let fault = parse_message_fault(&response_bytes);
 

@@ -46,10 +46,12 @@ pub fn encode_fixed32_field(field_number: u32, value: u32) -> Vec<u8> {
 // Decoding
 // ---------------------------------------------------------------------------
 
+#[allow(dead_code)]
 pub enum FieldValue {
     Varint(u64),
     Bytes(Vec<u8>),
-    Fixed32(()),
+    Fixed32(u32),
+    Fixed64(u64),
 }
 
 /// Decode a varint from `data` starting at `pos`.
@@ -97,14 +99,18 @@ pub fn decode_field(data: &[u8], pos: usize) -> Option<(u32, FieldValue, usize)>
             if pos + 4 > data.len() {
                 return None;
             }
-            Some((field_number, FieldValue::Fixed32(()), pos + 4))
+            let mut bytes = [0u8; 4];
+            bytes.copy_from_slice(&data[pos..pos + 4]);
+            Some((field_number, FieldValue::Fixed32(u32::from_le_bytes(bytes)), pos + 4))
         }
         1 => {
-            // 64-bit — skip it
+            // 64-bit fixed
             if pos + 8 > data.len() {
                 return None;
             }
-            Some((field_number, FieldValue::Fixed32(()), pos + 8))
+            let mut bytes = [0u8; 8];
+            bytes.copy_from_slice(&data[pos..pos + 8]);
+            Some((field_number, FieldValue::Fixed64(u64::from_le_bytes(bytes)), pos + 8))
         }
         _ => None,
     }
