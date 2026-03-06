@@ -15,6 +15,7 @@ curl -fsSL https://raw.githubusercontent.com/Agent-Gen-com/tesla-cli/main/instal
 ```
 
 Automatically detects your OS and architecture (x86\_64 / arm64), downloads the latest release binary, and installs it to `/usr/local/bin/teslacli`.
+After install, it immediately launches `teslacli setup`.
 
 ### Build from source
 
@@ -41,7 +42,7 @@ cargo install --path .
 
 ## First-time setup
 
-Run the interactive wizard — it walks you through all 5 steps:
+Run the interactive wizard — it walks you through 6 steps (including setup mode selection):
 
 ```bash
 teslacli setup
@@ -49,26 +50,33 @@ teslacli setup
 
 ### What the wizard does
 
-**Step 1 — AgentGen origin**
+**Step 1 — Setup mode**
+- Choose:
+- `User flow` (opens browser locally on this machine)
+- `Agent flow` (prints shareable links, then asks you to paste callback data)
+
+**Step 2 — AgentGen origin**
 - Prompts for your AgentGen API key
 - Provisions a subdomain (e.g. `abc123.agent-gen.com`) where your Tesla public key will be served
 - No GitHub repo or Tailscale required
 
-**Step 2 — Tesla Developer App**
+**Step 3 — Tesla Developer App**
 - Prompts for your Tesla `client_id`, `client_secret`, and region (`na` / `eu` / `cn`)
 - Register your app at https://developer.tesla.com
 - Set the OAuth redirect URI to: `http://localhost:13227/callback`
 
-**Step 3 — EC key pair**
+**Step 4 — EC key pair**
 - Generates a P-256 key pair and saves it to `~/.config/teslacli/keys/`
 - Uploads the public key to AgentGen (served at the Tesla-expected `.well-known` path)
 - Opens `https://tesla.com/_ak/<your-domain>` — **approve the key in your Tesla app**
 
-**Step 4 — Partner registration**
+**Step 5 — Partner registration**
 - Registers your app with the Tesla Fleet API using a `client_credentials` token
 
-**Step 5 — OAuth login**
-- Opens a browser for Tesla login (PKCE flow)
+**Step 6 — OAuth login + virtual key enrollment**
+- User flow opens browser locally for OAuth and enrollment
+- Agent flow prints OAuth and enrollment URLs for remote/headless browser usage
+- Agent flow asks for pasted callback URL (`code` + `state`) instead of waiting for local callback server
 - Saves tokens to `~/.config/teslacli/token.json`
 
 ### Files created by setup
@@ -175,7 +183,7 @@ All other settings (client ID, region, tokens) are stored in `~/.config/teslacli
 The virtual key approval step was skipped or not completed. Re-run `teslacli setup` and make sure to approve the key in the Tesla app when the enrollment URL opens.
 
 **"Token expired … run 'teslacli setup'"**
-The refresh token has expired (Tesla refresh tokens last ~45 days of inactivity). Re-run `teslacli setup` step 5 or just `teslacli setup` in full.
+The refresh token has expired (Tesla refresh tokens last ~45 days of inactivity). Re-run `teslacli setup` step 6 or just `teslacli setup` in full.
 
 **"Handshake fault 3: UNKNOWN_KEY_ID"**
 Same as the key-not-enrolled error above.
@@ -211,7 +219,7 @@ src/
 ├── api.rs           # TeslaClient (list/data/wake, VIN resolution)
 ├── crypto.rs        # P-256 keygen, ECDH + SHA-1 KDF
 ├── agentgen.rs      # AgentGen REST client (provision + upload)
-├── setup.rs         # Interactive 5-step wizard
+├── setup.rs         # Interactive 6-step wizard (user/agent flows)
 └── vcp/
     ├── mod.rs       # VcpClient: session cache, send_command()
     ├── proto.rs     # Hand-written protobuf primitives (no prost)

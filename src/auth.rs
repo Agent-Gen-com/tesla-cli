@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use rand::Rng;
 use sha2::{Digest, Sha256};
-use std::io::{BufRead, BufReader, Write};
+use std::io::{self, BufRead, BufReader, Write};
 use std::net::TcpListener;
 
 use crate::config::TokenData;
@@ -12,6 +12,12 @@ const TOKEN_URL: &str = "https://auth.tesla.com/oauth2/v3/token";
 const CALLBACK_PORT: u16 = 13227;
 const REDIRECT_URI: &str = "http://localhost:13227/callback";
 const SCOPES: &str = "openid offline_access vehicle_device_data vehicle_cmds vehicle_charging_cmds vehicle_location";
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum OAuthFlow {
+    User,
+    Agent,
+}
 
 fn generate_code_verifier() -> String {
     let bytes: Vec<u8> = rand::thread_rng()
@@ -97,7 +103,12 @@ fn wait_for_callback() -> Result<(String, String)> {
 }
 
 /// Full PKCE login flow — opens browser, waits for callback, exchanges code.
-pub async fn login(client_id: &str, client_secret: Option<&str>, _region: &str) -> Result<TokenData> {
+pub async fn login(
+    client_id: &str,
+    client_secret: Option<&str>,
+    _region: &str,
+    flow: OAuthFlow,
+) -> Result<TokenData> {
     let verifier = generate_code_verifier();
     let challenge = generate_code_challenge(&verifier);
     let state = generate_state();
@@ -118,20 +129,69 @@ pub async fn login(client_id: &str, client_secret: Option<&str>, _region: &str) 
         .join("&");
     let auth_url = format!("{}?{}", AUTHORIZE_URL, query);
 
-    println!("\nOpen this URL in your browser to authenticate:");
-    println!("  {}\n", auth_url);
-    if open::that(&auth_url).is_err() {
-        println!("(Could not open browser automatically — please paste the URL above.)");
-    }
-    println!("Waiting for OAuth callback on port {}...", CALLBACK_PORT);
-
-    let (code, returned_state) = tokio::task::spawn_blocking(wait_for_callback).await??;
+    let (code, returned_state) = match flow {
+        OAuthFlow::User => {
+            println!("\nOpen this URL in your browser to authenticate:");
+            println!("  {}\n", auth_url);
+            if open::that(&auth_url).is_err() {
+                println!("(Could not open browser automatically — please paste the URL above.)");
+            }
+            println!("Waiting for OAuth callback on port {}...", CALLBACK_PORT);
+            tokio::task::spawn_blocking(wait_for_callback).await??
+        }
+        OAuthFlow::Agent => {
+            println!("\nShare this OAuth URL with the end user and complete login in headless Chrome:");
+            println!("  {}\n", auth_url);
+            println!("After login, paste the full callback URL shown in the browser address bar.");
+            println!("Expected format: {}?code=...&state=...", REDIRECT_URI);
+            let callback = prompt_line("Callback URL");
+            parse_callback_input(&callback)?
+        }
+    };
 
     if returned_state != state {
         anyhow::bail!("OAuth state mismatch — possible CSRF attack");
     }
 
     exchange_code(&code, &verifier, client_id, client_secret).await
+}
+
+fn prompt_line(label: &str) -> String {
+    print!("{}: ", label);
+    io::stdout().flush().unwrap();
+    let mut input = String::new();
+    io::stdin().read_line(&mut input).unwrap();
+    input.trim().to_string()
+}
+
+fn parse_callback_input(input: &str) -> Result<(String, String)> {
+    let query = if let Some(q) = input.split_once('?') {
+        q.1
+    } else {
+        input
+    };
+
+    let query = query.split('#').next().unwrap_or(query);
+
+    let mut code = None;
+    let mut state = None;
+    for kv in query.split('&') {
+        let mut parts = kv.splitn(2, '=');
+        let k = parts.next().unwrap_or("");
+        let v = parts
+            .next()
+            .and_then(|s| urlencoding::decode(s).ok())
+            .map(|c| c.into_owned())
+            .unwrap_or_default();
+        if k == "code" {
+            code = Some(v);
+        } else if k == "state" {
+            state = Some(v);
+        }
+    }
+
+    code.zip(state)
+        .context("Could not parse callback URL. Expected query params: code and state")
 }
 
 async fn exchange_code(

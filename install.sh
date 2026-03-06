@@ -57,4 +57,6 @@ else
 fi
 
 chmod +x "${INSTALL_DIR}/${BINARY}"
-echo "Done! Run: ${BINARY} --help"
+echo "Done!"
+echo "Starting setup wizard..."
+"${INSTALL_DIR}/${BINARY}" setup

@@ -3,6 +3,12 @@ use std::io::{self, Write};
 
 use crate::{agentgen, auth, config::Config, crypto};
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum SetupFlow {
+    User,
+    Agent,
+}
+
 fn prompt(label: &str) -> String {
     print!("{}: ", label);
     io::stdout().flush().unwrap();
@@ -29,12 +35,21 @@ pub async fn run() -> Result<()> {
     println!("This wizard configures teslacli for use with the Tesla Fleet API.");
     println!("AgentGen replaces GitHub Pages / Tailscale for public-key hosting.\n");
 
+    println!("--- Step 1/6: Setup mode ---");
+    println!("  1) User flow  (local browser opens on this machine)");
+    println!("  2) Agent flow (headless browser; share links + paste callback data)");
+    let mode_input = prompt_default("Choose mode (1/2)", "1");
+    let flow = match mode_input.trim() {
+        "2" => SetupFlow::Agent,
+        _ => SetupFlow::User,
+    };
+
     let mut config = Config::load()?;
 
     // ------------------------------------------------------------------
-    // Step 1 — AgentGen API key → provision origin
+    // Step 2 — AgentGen API key → provision origin
     // ------------------------------------------------------------------
-    println!("--- Step 1/5: AgentGen origin ---");
+    println!("--- Step 2/6: AgentGen origin ---");
     println!("AgentGen hosts your Tesla public key at a stable HTTPS URL.");
     println!("Get a free API key at https://www.agent-gen.com\n");
 
@@ -54,9 +69,9 @@ pub async fn run() -> Result<()> {
     config.domain = Some(domain.clone());
 
     // ------------------------------------------------------------------
-    // Step 2 — Tesla Developer App credentials
+    // Step 3 — Tesla Developer App credentials
     // ------------------------------------------------------------------
-    println!("\n--- Step 2/5: Tesla Developer App ---");
+    println!("\n--- Step 3/6: Tesla Developer App ---");
     println!("Register your app at https://developer.tesla.com");
     println!();
     println!("  1. Application name   — pick any name");
@@ -84,11 +99,11 @@ pub async fn run() -> Result<()> {
     config.region = Some(region.clone());
 
     // ------------------------------------------------------------------
-    // Step 3 — EC key pair generation + upload to AgentGen
+    // Step 4 — EC key pair generation + upload to AgentGen
     // (must happen before partner registration — Tesla fetches the key
     //  when you call POST /api/1/partner_accounts)
     // ------------------------------------------------------------------
-    println!("\n--- Step 3/5: EC key pair ---");
+    println!("\n--- Step 4/6: EC key pair ---");
     print!("  Generating P-256 key pair... ");
     io::stdout().flush().unwrap();
 
@@ -124,10 +139,10 @@ pub async fn run() -> Result<()> {
     );
 
     // ------------------------------------------------------------------
-    // Step 4 — Partner registration
+    // Step 5 — Partner registration
     // (Tesla fetches the public key URL during this call — must come after upload)
     // ------------------------------------------------------------------
-    println!("\n--- Step 4/5: Partner registration ---");
+    println!("\n--- Step 5/6: Partner registration ---");
     print!("  Registering partner account with Tesla Fleet API... ");
     io::stdout().flush().unwrap();
 
@@ -140,22 +155,31 @@ pub async fn run() -> Result<()> {
     }
 
     // ------------------------------------------------------------------
-    // Step 5 — OAuth login + virtual key enrollment
+    // Step 6 — OAuth login + virtual key enrollment
     // ------------------------------------------------------------------
-    println!("\n--- Step 5/5: OAuth login + virtual key enrollment ---");
-    let token = auth::login(&client_id, secret, &region).await?;
+    println!("\n--- Step 6/6: OAuth login + virtual key enrollment ---");
+    let oauth_flow = match flow {
+        SetupFlow::User => auth::OAuthFlow::User,
+        SetupFlow::Agent => auth::OAuthFlow::Agent,
+    };
+    let token = auth::login(&client_id, secret, &region, oauth_flow).await?;
     token.save()?;
     println!("  Token saved.");
 
-    // Virtual key enrollment (open after OAuth so the Tesla app session is fresh)
+    // Virtual key enrollment (run after OAuth so the Tesla app session is fresh)
     let enrollment_url = format!("https://tesla.com/_ak/{}", domain);
-    println!("\n  Opening Tesla virtual key enrollment:");
+    println!("\n  Tesla virtual key enrollment:");
     println!("    {}", enrollment_url);
-    println!("  Approve the key in your Tesla app when prompted.\n");
-    if open::that(&enrollment_url).is_err() {
-        println!("  (Could not open browser — please open the URL above manually.)");
+    println!("  Approve the key in your Tesla app when prompted.");
+    if flow == SetupFlow::User {
+        println!();
+        if open::that(&enrollment_url).is_err() {
+            println!("  (Could not open browser — please open the URL above manually.)");
+        }
+    } else {
+        println!("  Share this URL with the end user and open it in the agent browser.");
     }
-    prompt("  Press Enter after approving the key in the Tesla app");
+    prompt("  Press Enter after approval is completed");
 
     // ------------------------------------------------------------------
     // Save config
